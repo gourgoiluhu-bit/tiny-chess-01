@@ -23,9 +23,14 @@ class B:
    l.append(s)
   return "/".join(l)+f" {self.t} - - 0 1"
  def e(self):
-  v={'P':100,'N':320,'B':330,'R':500,'Q':900,'K':20000,'p':-100,'n':-320,'b':-330,'r':-500,'q':-900,'k':-20000}
-  s=sum(v.get(p,0) for p in self.b.values())
-  return s if self.t=='w' else -s
+  v={'P':100,'N':320,'B':330,'R':500,'Q':900,'K':100000,'p':-100,'n':-320,'b':-330,'r':-500,'q':-900,'k':-100000}
+  n=sum(v[p] for p in self.b.values())
+  for (r,c),p in self.b.items():
+   if p=='P':n+=r<4
+   elif p=='p':n-=r>3
+   if p in 'NBRQ':n+=(c==3)+(c==4)+(r==3)+(r==4)
+   elif p in 'nbrq':n-=(c==3)+(c==4)+(r==3)+(r==4)
+  return n if self.t=='w' else -n
  def m(self):
   ms=[];w=self.t=='w'
   for (r,c),p in list(self.b.items()):
@@ -33,7 +38,9 @@ class B:
     pl=p.lower()
     if pl=='p':
      dr=-1 if w else 1
-     if (r+dr,c) not in self.b:ms.append(((r,c),(r+dr,c)))
+     if (r+dr,c) not in self.b:
+      ms.append(((r,c),(r+dr,c)))
+      if r==(6 if w else 1) and (r+2*dr,c) not in self.b:ms.append(((r,c),(r+2*dr,c)))
      for dc in (-1,1):
       if (r+dr,c+dc) in self.b and self.b[(r+dr,c+dc)].isupper()!=w:ms.append(((r,c),(r+dr,c+dc)))
     elif pl in ('n','k'):
@@ -42,7 +49,7 @@ class B:
       tr,tc=r+dr,c+dc
       if 0<=tr<8 and 0<=tc<8 and ((tr,tc) not in self.b or self.b[(tr,tc)].isupper()!=w):ms.append(((r,c),(tr,tc)))
     else:
-     ds=(( -1,-1),(-1,1),(1,-1),(1,1)) if pl=='b' else ()
+     ds=((-1,-1),(-1,1),(1,-1),(1,1)) if pl=='b' else ()
      if pl in ('r','q'):ds+=((-1,0),(1,0),(0,-1),(0,1))
      for dr,dc in ds:
       tr,tc=r+dr,c+dc
@@ -55,40 +62,44 @@ class B:
        tr,tc=tr+dr,c+dc
   return ms
  def x(self,m):
-  nb=B(self.f());p=nb.b.pop(m[0],None);nb.b[m[1]]=p;nb.t='b' if self.t=='w' else 'w';return nb
-def search(b,d,a,beta,mx):
+  nb=B(self.f());p=nb.b.pop(m[0],None)
+  if p=='P' and m[1][0]==0:p='Q'
+  if p=='p' and m[1][0]==7:p='q'
+  nb.b[m[1]]=p;nb.t='b' if self.t=='w' else 'w';return nb
+def search(b,d,a,beta):
  if d==0:return b.e(),None
  ms=b.m()
- if not ms:return b.e(),None
+ if not ms:return 0,None
  best=None
- if mx:
-  v=-99999
+ if b.t=='w':
+  v=-999999
   for m in ms:
-   ev,_=search(b.x(m),d-1,a,beta,0)
-   if ev>v:v=ev;best=m
+   ev=-search(b.x(m),d-1,-beta,-a)[0]
+   if best is None or ev>v:v=ev;best=m
    a=max(a,ev)
-   if beta<=a:break
+   if a>=beta:break
   return v,best
- else:
-  v=99999
-  for m in ms:
-   ev,_=search(b.x(m),d-1,a,beta,1)
-   if ev<v:v=ev;best=m
-   beta=min(beta,ev)
-   if beta<=a:break
-  return v,best
+ v=999999
+ for m in ms:
+  ev=-search(b.x(m),d-1,-beta,-a)[0]
+  if best is None or ev<v:v=ev;best=m
+  beta=min(beta,ev)
+  if a>=beta:break
+ return v,best
 def main():
- b=B()
+ cols="abcdefgh";b=B()
  for line in sys.stdin:
   l=line.strip()
   if l=="uci":print("id name Tiny\nuciok")
   elif l=="isready":print("readyok")
   elif l.startswith("position"):
-   p=l.split("fen ")
-   b=B(p[1]) if len(p)>1 else B()
+   if " fen " in l:b=B(l.split(" fen ",1)[1].split(" moves ")[0])
+   else:b=B()
+   if " moves " in l:
+    for u in l.split(" moves ")[1].split():
+     b=b.x(((8-int(u[1]),cols.index(u[0])),(8-int(u[3]),cols.index(u[2]))))
   elif l.startswith("go"):
-   _,bm=search(b,2,-99999,99999,1)
-   cols="abcdefgh"
+   _,bm=search(b,2,-999999,999999)
    print(f"bestmove {cols[bm[0][1]]}{8-bm[0][0]}{cols[bm[1][1]]}{8-bm[1][0]}" if bm else "bestmove a1a1")
   elif l=="quit":break
   sys.stdout.flush()
